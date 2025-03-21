@@ -6,15 +6,23 @@
 #include "proc.h"
 #include "defs.h"
 
+// Global flag to control tick behavior
+int use_dynamic_ticks = 1; // Default to dynamic ticks
+
 struct spinlock tickslock;
 uint ticks;
 
 extern char trampoline[], uservec[], userret[];
+extern struct proc proc[]; // added
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
 extern int devintr();
+
+// added
+void update_proc_stats(void);
+uint64 calculate_tick_interval(void);
 
 void
 trapinit(void)
@@ -160,21 +168,155 @@ kerneltrap()
   w_sstatus(sstatus);
 }
 
+// Update process statistics based on state transitions
+// Update process statistics based on state transitions
+void
+update_proc_stats(void)
+{
+  struct proc *p;
+  uint64 current_ticks;
+  
+  acquire(&tickslock);
+  current_ticks = ticks;
+  release(&tickslock);
+  
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state != UNUSED) {
+      uint64 elapsed = current_ticks - p->last_tick;
+      
+      // Update appropriate counters based on process state
+      if(p->state == RUNNING) {
+        p->run_ticks += elapsed;
+      } else if(p->state == SLEEPING) {
+        p->sleep_ticks += elapsed;
+      } else if(p->state == RUNNABLE) {
+        p->runnable_ticks += elapsed;
+      }
+      
+      // Update last tick time
+      p->last_tick = current_ticks;
+      
+      // Calculate CPU usage and I/O intensity periodically
+      // We'll do this every 10 ticks to smooth out fluctuations
+      if(current_ticks % 10 == 0) {
+        uint64 total_ticks = p->run_ticks + p->sleep_ticks + p->runnable_ticks;
+        
+        if(total_ticks > 0) {
+          // CPU usage = (run_ticks / total_ticks) * 10000
+          p->cpu_usage = (p->run_ticks * 10000) / total_ticks;
+          
+          // I/O intensity = (sleep_ticks / total_ticks) * 10000
+          // Note: This is an approximation, as not all sleep time is I/O
+          // but in most cases, processes sleep when waiting for I/O
+          p->io_intensity = (p->sleep_ticks * 10000) / total_ticks;
+        }
+      }
+    }
+    release(&p->lock);
+  }
+}
+
+// This function calculates the dynamic tick interval based on system state 
+//added
+uint64 calculate_tick_interval(void)
+{
+  struct cpu *c = mycpu();
+  struct proc *p;
+  int total_procs = 0;
+  int active_procs = 0;
+  int high_cpu_procs = 0;
+  int high_io_procs = 0;
+  uint64 interval = DEFAULT_TICK_INTERVAL;
+  
+  // Count different types of processes
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != UNUSED) {
+      total_procs++;
+      
+      if(p->state == RUNNING || p->state == RUNNABLE) {
+        active_procs++;
+      }
+      
+      if(p->cpu_usage > HIGH_CPU_THRESHOLD) {
+        high_cpu_procs++;
+      }
+      
+      if(p->io_intensity > HIGH_IO_THRESHOLD) {
+        high_io_procs++;
+      }
+    }
+  }
+  
+  // Adjust tick interval based on process behavior
+  // 1. If many high-CPU processes, use shorter ticks to prevent monopolization
+  // 2. If many I/O-intensive processes, use longer ticks to reduce overhead
+  // 3. Balance between system load and fairness!!!!!
+  
+  if(high_cpu_procs > (active_procs / 2) && active_procs > 1) {
+    // Shorter ticks when many CPU-bound processes are competing
+    interval = MIN_TICK_INTERVAL + 
+               (DEFAULT_TICK_INTERVAL - MIN_TICK_INTERVAL) * (1 - (float)high_cpu_procs/active_procs);
+  } else if(high_io_procs > (active_procs / 2) && active_procs > 1) {
+    // Longer ticks when many I/O-bound processes are running
+    interval = DEFAULT_TICK_INTERVAL + 
+               (MAX_TICK_INTERVAL - DEFAULT_TICK_INTERVAL) * ((float)high_io_procs/active_procs);
+  } else if(active_procs <= 1) {
+    // If only one active process or none, use longer interval
+    interval = MAX_TICK_INTERVAL;
+  } else {
+    // Default case: adjust based on number of active processes
+    // More processes -> shorter ticks for fairness
+    interval = DEFAULT_TICK_INTERVAL - 
+               (DEFAULT_TICK_INTERVAL - MIN_TICK_INTERVAL) * ((float)active_procs / NPROC);
+    
+    if(interval < MIN_TICK_INTERVAL)
+      interval = MIN_TICK_INTERVAL;
+  }
+  
+  // Save the calculated interval for metrics
+  c->current_tick_interval = interval;
+  
+  return interval;
+}
+
 void
 clockintr()
 {
-  if(cpuid() == 0){
-    acquire(&tickslock);
-    ticks++;
-    wakeup(&ticks);
-    release(&tickslock);
-  }
+  acquire(&tickslock);
+  ticks++;
+  update_proc_stats();  // Update process statistics
+  wakeup(&ticks);
+  release(&tickslock);
 
-  // ask for the next timer interrupt. this also clears
-  // the interrupt request. 1000000 is about a tenth
-  // of a second.
-  w_stimecmp(r_time() + 1000000);
+  // Calculate the dynamic tick interval based on current system state
+  uint64 interval;
+  if (use_dynamic_ticks) {
+    interval = calculate_tick_interval();
+  } else {
+    interval = DEFAULT_TICK_INTERVAL; // Fixed interval if dynamic is disabled
+  }
+  
+  // ask for the next timer interrupt with the dynamic interval
+  // this also clears the interrupt request
+  w_stimecmp(r_time() + interval);
 }
+
+// void
+// clockintr()
+// {
+//   if(cpuid() == 0){
+//     acquire(&tickslock);
+//     ticks++;
+//     wakeup(&ticks);
+//     release(&tickslock);
+//   }
+
+//   // ask for the next timer interrupt. this also clears
+//   // the interrupt request. 1000000 is about a tenth
+//   // of a second.
+//   w_stimecmp(r_time() + 1000000);
+// }
 
 // check if it's an external interrupt or software interrupt,
 // and handle it.

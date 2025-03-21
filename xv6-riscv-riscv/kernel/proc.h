@@ -118,3 +118,12 @@ struct proc {
   uint cpu_usage;             // CPU usage (percentage * 100)
   uint io_intensity;          // I/O intensity (percentage * 100)
 };
+
+// added
+// Constants for dynamic tick interval
+#define MIN_TICK_INTERVAL 100000    // 0.01 seconds
+#define DEFAULT_TICK_INTERVAL 1000000  // 0.1 seconds
+#define MAX_TICK_INTERVAL 10000000  // 1 second
+#define HIGH_CPU_THRESHOLD 8000     // 80% CPU usage threshold
+#define LOW_CPU_THRESHOLD 2000      // 20% CPU usage threshold
+#define HIGH_IO_THRESHOLD 7000      // 70% I/O intensity threshold
