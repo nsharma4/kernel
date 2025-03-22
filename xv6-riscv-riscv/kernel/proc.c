@@ -18,6 +18,9 @@ struct spinlock pid_lock;
 extern void forkret(void);
 static void freeproc(struct proc *p);
 
+// Counter for metrics ... Added
+uint64 total_context_switches = 0;
+
 extern char trampoline[]; // trampoline.S
 
 // helps ensure that wakeups of wait()ing
@@ -43,11 +46,14 @@ proc_mapstacks(pagetable_t kpgtbl)
   }
 }
 
-// initialize the proc table.
+
+
+// new added initialize the proc table
 void
 procinit(void)
 {
   struct proc *p;
+  struct cpu *c;
   
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
@@ -55,8 +61,39 @@ procinit(void)
       initlock(&p->lock, "proc");
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
+      
+      // Initialize process statistics
+      p->run_ticks = 0;
+      p->sleep_ticks = 0;
+      p->runnable_ticks = 0;
+      p->last_tick = 0;
+      p->cpu_usage = 0;
+      p->io_intensity = 0;
+  }
+  
+  // Initialize CPU statistics
+  for(int i = 0; i < NCPU; i++) {
+    c = &cpus[i];
+    c->running_procs = 0;
+    c->sleeping_procs = 0;
+    c->current_tick_interval = DEFAULT_TICK_INTERVAL;
   }
 }
+
+// // initialize the proc table.
+// void
+// procinit(void)
+// {
+//   struct proc *p;
+  
+//   initlock(&pid_lock, "nextpid");
+//   initlock(&wait_lock, "wait_lock");
+//   for(p = proc; p < &proc[NPROC]; p++) {
+//       initlock(&p->lock, "proc");
+//       p->state = UNUSED;
+//       p->kstack = KSTACK((int) (p - proc));
+//   }
+// }
 
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
@@ -87,6 +124,28 @@ myproc(void)
   struct proc *p = c->proc;
   pop_off();
   return p;
+}
+
+// Count processes in different states for metrics... added
+void
+count_processes(int *running, int *sleeping, int *runnable)
+{
+  struct proc *p;
+  
+  *running = 0;
+  *sleeping = 0;
+  *runnable = 0;
+  
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == RUNNING)
+      (*running)++;
+    else if(p->state == SLEEPING)
+      (*sleeping)++;
+    else if(p->state == RUNNABLE)
+      (*runnable)++;
+    release(&p->lock);
+  }
 }
 
 int
@@ -145,6 +204,20 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  // added
+  // Initialize process statistics
+  p->run_ticks = 0;
+  p->sleep_ticks = 0;
+  p->runnable_ticks = 0;
+  
+  // Initialize last_tick with current ticks
+  acquire(&tickslock);
+  p->last_tick = ticks;
+  release(&tickslock);
+  
+  p->cpu_usage = 0;
+  p->io_intensity = 0;
 
   return p;
 }
@@ -446,6 +519,14 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  //added till
+  int running, sleeping, runnable;
+  
+  // Update CPU stats
+  count_processes(&running, &sleeping, &runnable);
+  c->running_procs = running;
+  c->sleeping_procs = sleeping;
+  // added till here
 
   c->proc = 0;
   for(;;){
@@ -453,6 +534,9 @@ scheduler(void)
     // turned off; enable them to avoid a deadlock if all
     // processes are waiting.
     intr_on();
+
+    // added; Update process statistics for dynamic scheduling
+    count_processes(&running, &sleeping, &runnable);
 
     int found = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
@@ -462,6 +546,11 @@ scheduler(void)
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
+
+        //added
+        // Record context switch for metrics
+        total_context_switches++;
+
         c->proc = p;
         swtch(&c->context, &p->context);
 
