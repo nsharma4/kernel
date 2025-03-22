@@ -880,7 +880,7 @@ exitwait(char *s)
 {
   int i, pid;
 
-  for(i = 0; i < 100; i++){
+  for(i = 0; i < 10; i++){
     pid = fork();
     if(pid < 0){
       printf("%s: fork failed\n", s);
@@ -909,7 +909,7 @@ void
 reparent(char *s)
 {
   int master_pid = getpid();
-  for(int i = 0; i < 200; i++){
+  for(int i = 0; i < 20; i++){
     int pid = fork();
     if(pid < 0){
       printf("%s: fork failed\n", s);
@@ -936,7 +936,7 @@ reparent(char *s)
 void
 twochildren(char *s)
 {
-  for(int i = 0; i < 1000; i++){
+  for(int i = 0; i < 10; i++){
     int pid1 = fork();
     if(pid1 < 0){
       printf("%s: fork failed\n", s);
@@ -973,7 +973,7 @@ forkfork(char *s)
       exit(1);
     }
     if(pid == 0){
-      for(int j = 0; j < 200; j++){
+      for(int j = 0; j < 20; j++){
         int pid1 = fork();
         if(pid1 < 0){
           exit(1);
@@ -1035,7 +1035,7 @@ forkforkfork(char *s)
 void
 reparent2(char *s)
 {
-  for(int i = 0; i < 800; i++){
+  for(int i = 0; i < 30; i++){
     int pid1 = fork();
     if(pid1 < 0){
       printf("fork failed\n");

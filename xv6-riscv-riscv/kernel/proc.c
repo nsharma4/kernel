@@ -48,43 +48,12 @@ proc_mapstacks(pagetable_t kpgtbl)
 
 
 
-// new added initialize the proc table
-void
-procinit(void)
-{
-  struct proc *p;
-  struct cpu *c;
-  
-  initlock(&pid_lock, "nextpid");
-  initlock(&wait_lock, "wait_lock");
-  for(p = proc; p < &proc[NPROC]; p++) {
-      initlock(&p->lock, "proc");
-      p->state = UNUSED;
-      p->kstack = KSTACK((int) (p - proc));
-      
-      // Initialize process statistics
-      p->run_ticks = 0;
-      p->sleep_ticks = 0;
-      p->runnable_ticks = 0;
-      p->last_tick = 0;
-      p->cpu_usage = 0;
-      p->io_intensity = 0;
-  }
-  
-  // Initialize CPU statistics
-  for(int i = 0; i < NCPU; i++) {
-    c = &cpus[i];
-    c->running_procs = 0;
-    c->sleeping_procs = 0;
-    c->current_tick_interval = DEFAULT_TICK_INTERVAL;
-  }
-}
-
-// // initialize the proc table.
+// // new added initialize the proc table
 // void
 // procinit(void)
 // {
 //   struct proc *p;
+//   struct cpu *c;
   
 //   initlock(&pid_lock, "nextpid");
 //   initlock(&wait_lock, "wait_lock");
@@ -92,8 +61,39 @@ procinit(void)
 //       initlock(&p->lock, "proc");
 //       p->state = UNUSED;
 //       p->kstack = KSTACK((int) (p - proc));
+      
+//       // Initialize process statistics
+//       p->run_ticks = 0;
+//       p->sleep_ticks = 0;
+//       p->runnable_ticks = 0;
+//       p->last_tick = 0;
+//       p->cpu_usage = 0;
+//       p->io_intensity = 0;
+//   }
+  
+//   // Initialize CPU statistics
+//   for(int i = 0; i < NCPU; i++) {
+//     c = &cpus[i];
+//     c->running_procs = 0;
+//     c->sleeping_procs = 0;
+//     c->current_tick_interval = DEFAULT_TICK_INTERVAL;
 //   }
 // }
+
+// initialize the proc table.
+void
+procinit(void)
+{
+  struct proc *p;
+  
+  initlock(&pid_lock, "nextpid");
+  initlock(&wait_lock, "wait_lock");
+  for(p = proc; p < &proc[NPROC]; p++) {
+      initlock(&p->lock, "proc");
+      p->state = UNUSED;
+      p->kstack = KSTACK((int) (p - proc));
+  }
+}
 
 // Must be called with interrupts disabled,
 // to prevent race with process being moved

@@ -141,8 +141,8 @@ int             fetchstr(uint64, char*, int);
 int             fetchaddr(uint64, uint64*);
 void            syscall();
 //added
-int             sys_set_tick_mode(void);
-int             sys_get_perf_metrics(void);
+uint64             sys_set_tick_mode(void);
+uint64             sys_get_perf_metrics(void);
 
 // trap.c
 extern uint     ticks;

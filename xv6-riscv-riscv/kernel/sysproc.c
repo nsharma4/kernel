@@ -101,10 +101,12 @@ sys_set_tick_mode(void)
 {
   int mode;
   argint(0, &mode);
-  
+    
   // Set mode (0 = fixed tick interval, 1 = dynamic tick interval)
   use_dynamic_ticks = mode;
-  
+    
+  printf("Tick mode set to: %s\n", mode ? "dynamic" : "fixed");
+
   return 0;
 }
 
