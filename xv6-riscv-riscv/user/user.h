@@ -41,3 +41,13 @@ void *memcpy(void *, const void *, uint);
 // umalloc.c
 void* malloc(uint);
 void free(void*);
+
+// added
+struct perf_metrics {
+    uint64 total_ticks;
+    uint64 context_switches;
+    uint64 current_tick_interval;
+  };
+  
+  int set_tick_mode(int);
+  int get_perf_metrics(struct perf_metrics*);

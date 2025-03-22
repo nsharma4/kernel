@@ -36,3 +36,7 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+
+#added
+entry("set_tick_mode");
+entry("get_perf_metrics");

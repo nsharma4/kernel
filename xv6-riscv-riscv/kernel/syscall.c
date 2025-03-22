@@ -126,6 +126,9 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+//added
+[SYS_set_tick_mode]    sys_set_tick_mode,
+[SYS_get_perf_metrics] sys_get_perf_metrics,
 };
 
 void

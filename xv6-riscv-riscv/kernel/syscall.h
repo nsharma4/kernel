@@ -20,3 +20,6 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+//added
+#define SYS_set_tick_mode    22
+#define SYS_get_perf_metrics 23
